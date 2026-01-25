@@ -1,0 +1,164 @@
+﻿
+
+Basic editing functions
+=======================
+
+Key              Function    
+---              --------    
+Enter            AcceptLine  
+Shift+Enter      AddLine     
+Backspace        BackwardDele
+                 teChar      
+Ctrl+h           BackwardDele
+                 teChar      
+Ctrl+Home        BackwardDele
+                 teInput     
+Ctrl+Backspace   BackwardKill
+                 Word        
+Ctrl+w           BackwardKill
+                 Word        
+Ctrl+C           Copy        
+Ctrl+c           CopyOrCancel
+                 Line        
+Ctrl+x           Cut         
+Delete           DeleteChar  
+Ctrl+End         ForwardDelet
+                 eInput      
+Ctrl+Enter       InsertLineAb
+                 ove         
+Shift+Ctrl+Enter InsertLineBe
+                 low         
+Alt+d            KillWord    
+Ctrl+Delete      KillWord    
+Ctrl+v           Paste       
+Shift+Insert     Paste       
+Ctrl+y           Redo        
+Escape           RevertLine  
+Ctrl+z           Undo        
+Alt+.            YankLastArg 
+
+
+Cursor movement functions
+=========================
+
+Key             Function     
+---             --------     
+LeftArrow       BackwardChar 
+Ctrl+LeftArrow  BackwardWord 
+Home            BeginningOfLi
+                ne           
+End             EndOfLine    
+RightArrow      ForwardChar  
+Ctrl+]          GotoBrace    
+Ctrl+RightArrow NextWord     
+
+
+History functions
+=================
+
+Key       Function           
+---       --------           
+Alt+F7    ClearHistory       
+Ctrl+s    ForwardSearchHistor
+          y                  
+F8        HistorySearchBackwa
+          rd                 
+Shift+F8  HistorySearchForwar
+          d                  
+DownArrow NextHistory        
+UpArrow   PreviousHistory    
+Ctrl+r    ReverseSearchHistor
+          y                  
+
+
+Completion functions
+====================
+
+Key           Function       
+---           --------       
+Ctrl+@        MenuComplete   
+Ctrl+Spacebar MenuComplete   
+Tab           TabCompleteNext
+Shift+Tab     TabCompletePrev
+              ious           
+
+
+Prediction functions
+====================
+
+Key Function                 
+--- --------                 
+F4  ShowFullPredictionTooltip
+F2  SwitchPredictionView     
+
+
+Miscellaneous functions
+=======================
+
+Key           Function       
+---           --------       
+Ctrl+l        ClearScreen    
+Alt+0         DigitArgument  
+Alt+1         DigitArgument  
+Alt+2         DigitArgument  
+Alt+3         DigitArgument  
+Alt+4         DigitArgument  
+Alt+5         DigitArgument  
+Alt+6         DigitArgument  
+Alt+7         DigitArgument  
+Alt+8         DigitArgument  
+Alt+9         DigitArgument  
+Alt+-         DigitArgument  
+PageDown      ScrollDisplayDo
+              wn             
+Ctrl+PageDown ScrollDisplayDo
+              wnLine         
+PageUp        ScrollDisplayUp
+Ctrl+PageUp   ScrollDisplayUp
+              Line           
+F1            ShowCommandHelp
+Ctrl+Alt+?    ShowKeyBindings
+Alt+h         ShowParameterHe
+              lp             
+Alt+?         WhatIsKey      
+
+
+Selection functions
+===================
+
+Key                   Functio
+                      n      
+---                   -------
+Ctrl+a                SelectA
+                      ll     
+Shift+LeftArrow       SelectB
+                      ackward
+                      Char   
+Shift+Home            SelectB
+                      ackward
+                      sLine  
+Shift+Ctrl+LeftArrow  SelectB
+                      ackward
+                      Word   
+Alt+a                 SelectC
+                      ommandA
+                      rgument
+Shift+RightArrow      SelectF
+                      orwardC
+                      har    
+Shift+End             SelectL
+                      ine    
+Shift+Ctrl+RightArrow SelectN
+                      extWord
+
+
+Search functions
+================
+
+Key      Function            
+---      --------            
+F3       CharacterSearch     
+Shift+F3 CharacterSearchBackw
+         ard                 
+
+
