@@ -1,0 +1,22 @@
+{
+  "store": "ENEOSレギュラー",
+  "date": "2026/01/10",
+  "time": "08:48",
+  "total": 3104,
+  "tax_10_base": 0,
+  "tax_10_amount": 282,
+  "tax_8_base": 0,
+  "tax_8_amount": 0,
+  "invoice_number": "4648-04",
+  "payment_method": "クレジット",
+  "items": [
+    {
+      "name": "ENEOSレギュラー",
+      "price": 142
+    },
+    {
+      "name": "消費税",
+      "price": -109
+    }
+  ]
+}

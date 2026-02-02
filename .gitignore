@@ -38,7 +38,38 @@ google-credentials.json
 ocr_result.json
 llm_summary.json
 llm_result.json
+llm_raw_output.txt
+temp_ocr.txt
+ocr_full.txt
+ocr_result.txt
+
+# ログファイル
+logs/
+*.log
+
+# 出力ファイル
+output/
 
 # テスト用画像（必要なら個別にgit add）
 # *.jpg
 # *.png
+
+# テストカバレッジ
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+coverage.xml
+
+# IDE設定
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 一時ファイル
+*.tmp
+*.bak
+temp_keys.txt
+handlers_with_a.txt

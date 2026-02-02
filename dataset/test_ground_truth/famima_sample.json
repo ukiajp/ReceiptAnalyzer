@@ -1,0 +1,18 @@
+{
+  "store": "FamilyMart",
+  "date": "2024-01-05",
+  "time": "09:38",
+  "total": "106",
+  "tax_10_base": "0",
+  "tax_10_amount": "7",
+  "tax_8_base": "106",
+  "tax_8_amount": "0",
+  "invoice_number": "2024年1月5日 (金) 9:38レジ 4-7394",
+  "payment_method": "クレジット支払",
+  "items": [
+    {
+      "name": "スイートオレンジ&温州",
+      "price": "106"
+    }
+  ]
+}

@@ -1,2 +1,16 @@
-ollama
-pillow
+# Core dependencies
+google-cloud-vision>=3.4.0
+ollama>=0.1.0
+json-repair>=0.7.0
+pillow>=10.0.0
+
+# Development and testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.0.0
+mypy>=1.5.0
+ruff>=0.1.0
+
+# Utilities
+python-dotenv>=1.0.0
+pathlib2>=2.3.7; python_version < '3.4'

@@ -1,0 +1,26 @@
+{
+  "store": "BakeryRestaurantC西宮ガーデン",
+  "date": "2026-01-16",
+  "time": "19:45",
+  "total": "2717",
+  "tax_10_base": "0",
+  "tax_10_amount": "247",
+  "tax_8_base": "0",
+  "tax_8_amount": "0",
+  "invoice_number": "T4260001004499",
+  "payment_method": "クレジット",
+  "items": [
+    {
+      "name": "S・ランチスープ",
+      "price": "319"
+    },
+    {
+      "name": "S･ ランチサラダ",
+      "price": "0"
+    },
+    {
+      "name": "L. ホットコーヒー",
+      "price": "0"
+    }
+  ]
+}
