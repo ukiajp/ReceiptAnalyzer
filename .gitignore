@@ -47,8 +47,8 @@ ocr_result.txt
 logs/
 *.log
 
-# 出力ファイル
-output/
+# 出力ファイル（ルート直下のみ。src/output/ は除外しない）
+/output/
 
 # テスト用画像（必要なら個別にgit add）
 # *.jpg

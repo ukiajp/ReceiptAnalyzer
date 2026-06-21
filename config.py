@@ -1,73 +1,60 @@
-"""
-設定管理モジュール
-環境変数とデフォルト値の管理
-"""
-
 import os
 from pathlib import Path
-from typing import Optional
+
 from dotenv import load_dotenv
 
-# .envファイルを読み込み
 load_dotenv()
 
 
 class Config:
-    """アプリケーション設定"""
-    
-    # Google Cloud認証情報
-    GOOGLE_CREDENTIALS_PATH: str = os.getenv(
-        "GOOGLE_CREDENTIALS_PATH", 
-        "google-credentials.json"
-    )
-    
-    # Ollama設定
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    DEFAULT_LLM_MODEL: str = os.getenv("DEFAULT_LLM_MODEL", "llama3.2:3b")
-    
-    # ディレクトリ設定
-    DATASET_DIR: Path = Path(os.getenv("DATASET_DIR", "dataset"))
-    TEST_IMAGES_DIR: Path = DATASET_DIR / "test_images"
-    TEST_GROUND_TRUTH_DIR: Path = DATASET_DIR / "test_ground_truth"
-    
-    # 処理設定
-    LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.1"))
-    MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "3"))
-    TIMEOUT_SECONDS: int = int(os.getenv("TIMEOUT_SECONDS", "60"))
-    
-    # ログ設定
+    LLM_ENGINE: str = os.getenv("LLM_ENGINE", "claude")
+    OUTPUT_MODE: str = os.getenv("OUTPUT_MODE", "mf_api")
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    MF_CLIENT_ID: str = os.getenv("MF_CLIENT_ID", "")
+    MF_CLIENT_SECRET: str = os.getenv("MF_CLIENT_SECRET", "")
+    MF_ACCESS_TOKEN: str = os.getenv("MF_ACCESS_TOKEN", "")
+    MF_REFRESH_TOKEN: str = os.getenv("MF_REFRESH_TOKEN", "")
+    GDRIVE_INBOX_FOLDER_ID: str = os.getenv("GDRIVE_INBOX_FOLDER_ID", "")
+    GDRIVE_PROCESSED_FOLDER_ID: str = os.getenv("GDRIVE_PROCESSED_FOLDER_ID", "")
+    GDRIVE_ERROR_FOLDER_ID: str = os.getenv("GDRIVE_ERROR_FOLDER_ID", "")
+    PAST_JOURNALS_CSV: str = os.getenv("PAST_JOURNALS_CSV", "./data/past_journals.csv")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_DIR: Path = Path(os.getenv("LOG_DIR", "logs"))
-    LOG_FILE: Optional[str] = os.getenv("LOG_FILE", "receipt_analyzer.log")
-    
-    # 出力設定
-    OUTPUT_DIR: Path = Path(os.getenv("OUTPUT_DIR", "output"))
-    SAVE_RAW_OUTPUT: bool = os.getenv("SAVE_RAW_OUTPUT", "true").lower() == "true"
-    
+    MF_API_BASE_URL: str = os.getenv("MF_API_BASE_URL", "https://api.biz.moneyforward.com")
+    MF_TOKEN_URL: str = os.getenv("MF_TOKEN_URL", "https://accounts.moneyforward.com/oauth/token")
+
+    LOG_DIR: Path = Path("logs")
+
     @classmethod
-    def validate(cls, check_images_dir: bool = True) -> list[str]:
-        """
-        設定の妥当性を検証
-        
-        Args:
-            check_images_dir: テスト画像ディレクトリの存在チェックを行うか
-        
-        Returns:
-            エラーメッセージのリスト
-        """
-        errors = []
-        
-        if not Path(cls.GOOGLE_CREDENTIALS_PATH).exists():
-            errors.append(f"Google認証情報が見つかりません: {cls.GOOGLE_CREDENTIALS_PATH}")
-        
-        if check_images_dir and not cls.TEST_IMAGES_DIR.exists():
-            errors.append(f"テスト画像ディレクトリが見つかりません: {cls.TEST_IMAGES_DIR}")
-        
+    def validate(cls) -> list[str]:
+        errors: list[str] = []
+
+        if not cls.GOOGLE_APPLICATION_CREDENTIALS:
+            errors.append("GOOGLE_APPLICATION_CREDENTIALS is not set")
+
+        if cls.LLM_ENGINE == "claude" and not cls.ANTHROPIC_API_KEY:
+            errors.append("ANTHROPIC_API_KEY is required when LLM_ENGINE=claude")
+
+        if cls.LLM_ENGINE == "openai" and not cls.OPENAI_API_KEY:
+            errors.append("OPENAI_API_KEY is required when LLM_ENGINE=openai")
+
+        if not cls.GDRIVE_INBOX_FOLDER_ID:
+            errors.append("GDRIVE_INBOX_FOLDER_ID is not set")
+
+        if cls.OUTPUT_MODE == "mf_api":
+            required_values = {
+                "MF_ACCESS_TOKEN": cls.MF_ACCESS_TOKEN,
+                "MF_REFRESH_TOKEN": cls.MF_REFRESH_TOKEN,
+                "MF_CLIENT_ID": cls.MF_CLIENT_ID,
+                "MF_CLIENT_SECRET": cls.MF_CLIENT_SECRET,
+            }
+            for name, value in required_values.items():
+                if not value:
+                    errors.append(f"{name} is required when OUTPUT_MODE=mf_api")
+
         return errors
-    
+
     @classmethod
-    def ensure_directories(cls):
-        """必要なディレクトリを作成"""
+    def ensure_directories(cls) -> None:
         cls.LOG_DIR.mkdir(parents=True, exist_ok=True)
-        cls.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        cls.TEST_GROUND_TRUTH_DIR.mkdir(parents=True, exist_ok=True)
