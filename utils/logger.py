@@ -5,9 +5,22 @@
 
 import logging
 import sys
+import io
 from pathlib import Path
 from typing import Optional
 from config import Config
+
+# Windows環境でのUnicodeEncodeError対策（標準出力をUTF-8に変更）
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 
 def setup_logger(

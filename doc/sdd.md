@@ -1,0 +1,165 @@
+# SDD — ReceiptAnalyzer v1.0（仕様駆動設計書）
+
+> 唯一の真実源。実装はここを参照し、ここから外れない。
+> 依存: `purpose.md`（根）/ `interface.md`（I/F・正本スキーマ）
+> 確定日: 2026-06-21
+
+---
+
+## 1. 一文定義
+
+「Googleドライブに投函されたレシート・領収書画像を、OCR → LLM構造化 → MoneyForward仕訳登録まで半自動化するCLIパイプライン。」
+
+---
+
+## 2. アーキテクチャ（4ステージ骨格）
+
+```
+①取り込み              ②変換/生成                    ③人の確認    ④着地
+Drive/受信トレイ/  →  Vision OCR                →  [将来拡張]  →  MF API
+  {人名}/             LLM構造化（LLM_ENGINE）                      仕訳登録
+                      正本JSON v1.0.0 生成                         証憑添付
+                      ファイルリネーム（yyyymmdd_取引先.ext）
+                      Drive/処理済み/{人名}/ へ移動
+```
+
+---
+
+## 3. モジュール構成と責務
+
+### src/ ディレクトリ構造
+
+```
+src/
+  pipeline.py           ← オーケストレーター
+  drive_client.py       ← Steps 1・4・5
+  ocr_engine.py         ← Step 2
+  llm_provider.py       ← Step 3（LLM呼び出し）
+  account_resolver.py   ← Step 3（コンテキスト生成）
+  schema_builder.py     ← Step 3（JSON変換・バリデーション）
+  output/               ← 出力アダプタ（枝葉・交換可能）
+    mf_api_client.py    ← Steps 6-7（アダプタ A・主系）
+    csv_exporter.py     ← Step 6a（アダプタ B・派生）
+config.py               ← 環境変数管理（更新）
+```
+
+### モジュール責務
+
+| モジュール | 担当ステップ | 責務 | 新規/流用 |
+|---|---|---|---|
+| `pipeline.py` | 全体 | オーケストレーション・エラー処理 | 新規 |
+| `drive_client.py` | 1・4・5 | Driveフォルダ一覧・ダウンロード・リネーム・移動 | 新規 |
+| `ocr_engine.py` | 2 | Google Vision API呼び出し → テキスト返却 | 既存から移植 |
+| `llm_provider.py` | 3 | LLM_ENGINEで切り替え（claude / openai）→ JSON返却 | 新規 |
+| `account_resolver.py` | 3 | 過去仕訳CSV + MFマスタ参照 → 勘定科目提案 | 新規 |
+| `schema_builder.py` | 3 | LLM出力 → 正本JSON v1.0.0 変換・バリデーション | 新規 |
+| `output/mf_api_client.py` | 6-7 | 仕訳登録POST・証憑アップロードPOST・トークンリフレッシュ | 新規 |
+| `output/csv_exporter.py` | 6a | 正本JSON → MoneyForward CSVファイル出力 | 新規 |
+| `config.py` | — | 環境変数管理 | 既存を更新 |
+
+### 出力アダプタの切り替え
+
+```
+正本JSON（ピボット）
+       ↓
+  OUTPUT_MODE 設定
+       ↓                    ↓
+  mf_api_client         csv_exporter
+  （主系・API登録）      （派生・CSV出力）
+```
+
+`OUTPUT_MODE=mf_api`（デフォルト）または `csv` を `.env` で指定。
+アダプタ追加（freee・弥生等）は `output/` にファイルを足すだけ。`pipeline.py` は変更不要。
+
+---
+
+## 4. 処理フロー
+
+```
+[手動実行] python pipeline.py
+
+for 人名フォルダ in Drive/00_受信トレイ/:
+  for 画像ファイル in 人名フォルダ:
+
+    [Step 1] ocr_engine: 画像 → OCRテキスト
+      失敗 → Drive/02_エラー/{人名}/ へ移動・ログ記録・次ファイルへ
+
+    [Step 2] account_resolver: MFマスタ取得 + 過去仕訳CSV読込 → コンテキスト生成
+
+    [Step 3] llm_provider: OCRテキスト + コンテキスト → JSON
+
+    [Step 4] schema_builder: バリデーション（tax整合・必須項目チェック）
+      失敗 → Drive/02_エラー/{人名}/ へ移動・ログ記録・次ファイルへ
+
+    [Step 5] ファイルリネーム: yyyymmdd_取引先.ext
+
+    [Step 6] Drive/01_処理済み/{人名}/ へ移動  ← 正本JSONが確定した時点
+
+    [Step 7] mf_api_client: 仕訳登録 → journal_id 取得
+
+    [Step 8] mf_api_client: 証憑アップロード（Base64）← journal_id 必須
+
+    [Step 9] ログ記録（成功・処理時間・journal_id）
+```
+
+---
+
+## 5. Googleドライブ構成
+
+```
+レシート/
+  00_受信トレイ/{人名}/   ← スマホから保存
+  01_処理済み/{人名}/     ← Step 6 完了後
+  02_エラー/{人名}/       ← OCR失敗またはバリデーション失敗
+```
+
+人名フォルダは提出者識別用。v1では仕訳の `department_id` 等には反映しない（導入先次第で拡張）。
+
+---
+
+## 6. 設定（.env）
+
+```
+LLM_ENGINE=claude                    # claude | openai（切り替えポイント）
+OUTPUT_MODE=mf_api                   # mf_api | csv（出力アダプタ切り替え）
+ANTHROPIC_API_KEY=...
+OPENAI_API_KEY=...                   # LLM_ENGINE=openai 時のみ
+GOOGLE_APPLICATION_CREDENTIALS=...  # Vision API・Drive API 共用サービスアカウント
+MF_CLIENT_ID=...
+MF_CLIENT_SECRET=...
+MF_ACCESS_TOKEN=...                  # 有効期限1時間・自動リフレッシュ
+MF_REFRESH_TOKEN=...
+GDRIVE_INBOX_FOLDER_ID=...
+PAST_JOURNALS_CSV=./data/past_journals.csv
+```
+
+---
+
+## 7. ADR（アーキテクチャ決定記録）
+
+| ADR | 決定 | 理由 |
+|---|---|---|
+| ADR-001 | OCR = Google Vision API（クラウド固定） | 精度・速度・コスト最優先。ローカルOCRは非目標 |
+| ADR-002 | LLM = LLM_ENGINE env varで切り替え | 企業ごとに承認LLMが異なる。枝葉として設計 |
+| ADR-003 | 人別サブフォルダ | 将来の複数ユーザー対応・提出者識別 |
+| ADR-004 | 正本JSON v1.0.0 = 唯一のピボット | 上流・下流の契約を一箇所に集約。スキーマ変更は interface.md が起点 |
+| ADR-005 | 出力アダプタパターン（`output/` フォルダ） | MF API・CSV・将来の他会計システムを同一インターフェースで交換可能にする |
+| ADR-010 | MF API直接登録（CSV非主系） | 可逆性あり・手作業ゼロへ。CSVはJSONから派生可能（OUTPUT_MODE=csv で切り替え） |
+| ADR-006 | JSON確定時点で処理済みへ移動（API登録完了を待たない） | JSON後の加工は確実。OCR・LLM失敗のみ入口でブロック |
+| ADR-007 | 勘定科目 = 過去仕訳CSV + MFマスタをLLMコンテキストに渡す | 企業ごとの会計慣行に自動適応。ルールベース不要 |
+| ADR-008 | 証憑画像はBase64で POST /api/v3/vouchers | MF API対応済み確認済み（2026-06-21調査） |
+| ADR-009 | ローカルLLM（Ollama）は対象外（v1） | 安定性優先。Phase 2以降で実験 |
+
+---
+
+## 8. 制約（変更禁止）
+
+1. 正本JSONスキーマ（`interface.md`）を実装側で勝手に変更しない
+2. 証憑アップロード（Step 8）は journal_id 取得後のみ実行する（順序保証）
+3. MF API登録はバリデーション通過後のみ実行する（エラーファイルには触れない）
+4. Drive認証情報・MFトークン・APIキーをコードにハードコードしない
+5. ローカルファイルシステムを入力源にしない（Drive経由のみ）
+
+---
+
+*作成: 2026-06-21 / Claude Code Phase 0 / purpose.md・interface.md から派生*
