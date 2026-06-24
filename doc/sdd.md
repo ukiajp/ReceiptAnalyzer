@@ -15,12 +15,12 @@
 ## 2. アーキテクチャ（4ステージ骨格）
 
 ```
-①取り込み              ②変換/生成                    ③人の確認    ④着地
-Drive/受信トレイ/  →  Vision OCR                →  [将来拡張]  →  MF API
-  {人名}/             LLM構造化（LLM_ENGINE）                      仕訳登録
-                      正本JSON v1.0.0 生成                         証憑添付
-                      ファイルリネーム（yyyymmdd_取引先.ext）
-                      Drive/処理済み/{人名}/ へ移動
+①取り込み                    ②変換/生成                    ③人の確認    ④着地
+マウント済みフォルダ/      →  Vision OCR                →  [将来拡張]  →  MF API
+  受信トレイ/{人名}/           LLM構造化（LLM_ENGINE）                      仕訳登録
+  （Gドライブ・BOX等）         正本JSON v1.0.0 生成                         証憑添付
+                              ファイルリネーム（yyyymmdd_取引先.ext）
+                              処理済み/{人名}/ へ移動
 ```
 
 ---
@@ -48,9 +48,9 @@ config.py               ← 環境変数管理（更新）
 | モジュール | 担当ステップ | 責務 | 新規/流用 |
 |---|---|---|---|
 | `pipeline.py` | 全体 | オーケストレーション・エラー処理 | 新規 |
-| `drive_client.py` | 1・4・5 | Driveフォルダ一覧・ダウンロード・リネーム・移動 | 新規 |
+| `drive_client.py` | 1・4・5 | マウント済みフォルダ一覧・ファイル読込・リネーム・移動（os/pathlib/shutil） | 新規 |
 | `ocr_engine.py` | 2 | Google Vision API呼び出し → テキスト返却 | 既存から移植 |
-| `llm_provider.py` | 3 | LLM_ENGINEで切り替え（claude / openai）→ JSON返却 | 新規 |
+| `llm_provider.py` | 3 | LLM_ENGINEで切り替え（claude / openai / gemini）→ JSON返却 | 新規 |
 | `account_resolver.py` | 3 | 過去仕訳CSV + MFマスタ参照 → 勘定科目提案 | 新規 |
 | `schema_builder.py` | 3 | LLM出力 → 正本JSON v1.0.0 変換・バリデーション | 新規 |
 | `output/mf_api_client.py` | 6-7 | 仕訳登録POST・証憑アップロードPOST・トークンリフレッシュ | 新規 |
@@ -113,6 +113,8 @@ for 人名フォルダ in Drive/00_受信トレイ/:
   02_エラー/{人名}/       ← OCR失敗またはバリデーション失敗
 ```
 
+フォルダはローカルにマウントされたドライブ（Gドライブ・BOX等）上に置く。
+`INBOX_FOLDER_PATH` 等の環境変数でパスを渡す。Drive API は使用しない。
 人名フォルダは提出者識別用。v1では仕訳の `department_id` 等には反映しない（導入先次第で拡張）。
 
 ---
@@ -120,16 +122,19 @@ for 人名フォルダ in Drive/00_受信トレイ/:
 ## 6. 設定（.env）
 
 ```
-LLM_ENGINE=claude                    # claude | openai（切り替えポイント）
+LLM_ENGINE=claude                    # claude | openai | gemini（切り替えポイント）
 OUTPUT_MODE=mf_api                   # mf_api | csv（出力アダプタ切り替え）
 ANTHROPIC_API_KEY=...
 OPENAI_API_KEY=...                   # LLM_ENGINE=openai 時のみ
-GOOGLE_APPLICATION_CREDENTIALS=...  # Vision API・Drive API 共用サービスアカウント
+GEMINI_API_KEY=...                   # LLM_ENGINE=gemini 時のみ（無料枠あり）
+GOOGLE_APPLICATION_CREDENTIALS=...  # Vision API 用サービスアカウント
 MF_CLIENT_ID=...
 MF_CLIENT_SECRET=...
 MF_ACCESS_TOKEN=...                  # 有効期限1時間・自動リフレッシュ
 MF_REFRESH_TOKEN=...
-GDRIVE_INBOX_FOLDER_ID=...
+INBOX_FOLDER_PATH=...                # 受信トレイフォルダのローカルパス（例: G:\レシート\00_受信トレイ）
+PROCESSED_FOLDER_PATH=...           # 処理済みフォルダのローカルパス
+ERROR_FOLDER_PATH=...               # エラーフォルダのローカルパス
 PAST_JOURNALS_CSV=./data/past_journals.csv
 ```
 
@@ -149,6 +154,8 @@ PAST_JOURNALS_CSV=./data/past_journals.csv
 | ADR-007 | 勘定科目 = 過去仕訳CSV + MFマスタをLLMコンテキストに渡す | 企業ごとの会計慣行に自動適応。ルールベース不要 |
 | ADR-008 | 証憑画像はBase64で POST /api/v3/vouchers | MF API対応済み確認済み（2026-06-21調査） |
 | ADR-009 | ローカルLLM（Ollama）は対象外（v1） | 安定性優先。Phase 2以降で実験 |
+| ADR-011 | Gemini（gemini-2.0-flash）をLLM_ENGINE第3の選択肢として追加 | 無料枠（1日1,500req）でのテスト・コスト削減目的。google-generativeai ライブラリ使用。ADR-002の枝葉設計に従い llm_provider.py のみ変更 |
+| ADR-012 | 入力源を Drive API からマウント済みローカルパスに変更 | Drive API（フォルダID方式）は不要な複雑さ。GドライブやBOXをマウントすれば複数PC対応も可能。os/pathlib/shutil で十分。GDRIVE_*_FOLDER_ID を廃止し INBOX_FOLDER_PATH 等のパス変数に置き換え |
 
 ---
 
@@ -158,7 +165,7 @@ PAST_JOURNALS_CSV=./data/past_journals.csv
 2. 証憑アップロード（Step 8）は journal_id 取得後のみ実行する（順序保証）
 3. MF API登録はバリデーション通過後のみ実行する（エラーファイルには触れない）
 4. Drive認証情報・MFトークン・APIキーをコードにハードコードしない
-5. ローカルファイルシステムを入力源にしない（Drive経由のみ）
+5. 入力源はマウント済みフォルダ経由とする（Drive API は使用しない）
 
 ---
 

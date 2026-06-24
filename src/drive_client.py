@@ -1,157 +1,75 @@
-import io
 import logging
+import os
 from pathlib import Path
-
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import Resource, build
-from googleapiclient.http import MediaIoBaseDownload
+import shutil
 
 from config import Config
 
 
 logger = logging.getLogger(__name__)
 
-DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
-FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
-
 
 class DriveClient:
     def __init__(self) -> None:
-        credentials_path = Config.GOOGLE_APPLICATION_CREDENTIALS.strip()
-        if not credentials_path:
-            raise ValueError("GOOGLE_APPLICATION_CREDENTIALS is not set")
+        inbox_folder_path = Config.INBOX_FOLDER_PATH.strip()
+        if not inbox_folder_path:
+            raise ValueError("INBOX_FOLDER_PATH is not set")
 
-        credential_file = Path(credentials_path)
-        if not credential_file.is_file():
-            raise FileNotFoundError(
-                f"GOOGLE_APPLICATION_CREDENTIALS file not found: {credential_file}"
-            )
+        inbox_dir = Path(inbox_folder_path)
+        if not inbox_dir.is_dir():
+            raise ValueError(f"INBOX_FOLDER_PATH is not a directory: {inbox_dir}")
 
-        creds = Credentials.from_service_account_file(
-            str(credential_file),
-            scopes=[DRIVE_SCOPE],
-        )
-        self._drive: Resource = build("drive", "v3", credentials=creds)
-
-    def list_person_folders(self, inbox_folder_id: str) -> list[dict[str, str]]:
-        query = (
-            f"'{self._escape_query_value(inbox_folder_id)}' in parents "
-            f"and mimeType = '{FOLDER_MIME_TYPE}' "
-            "and trashed = false"
-        )
-        folders = self._list_files_by_query(
-            query=query,
-            fields="id, name",
-            order_by="name_natural",
-        )
-        logger.info("Listed %d person folders under %s", len(folders), inbox_folder_id)
+    def list_person_folders(self, inbox_folder_path: str) -> list[dict[str, str]]:
+        inbox_dir = Path(inbox_folder_path)
+        folders = [
+            {"id": str(path), "name": path.name}
+            for path in sorted(inbox_dir.iterdir(), key=lambda item: item.name)
+            if path.is_dir()
+        ]
+        logger.info("Listed %d person folders under %s", len(folders), inbox_folder_path)
         return folders
 
-    def list_files(self, folder_id: str) -> list[dict[str, str]]:
-        query = (
-            f"'{self._escape_query_value(folder_id)}' in parents "
-            f"and mimeType != '{FOLDER_MIME_TYPE}' "
-            "and trashed = false"
-        )
-        files = self._list_files_by_query(
-            query=query,
-            fields="id, name, mimeType",
-            order_by="name_natural",
-        )
-        logger.info("Listed %d files under %s", len(files), folder_id)
+    def list_files(self, folder_path: str) -> list[dict[str, str]]:
+        target_dir = Path(folder_path)
+        files = [
+            {"id": str(path), "name": path.name}
+            for path in sorted(target_dir.iterdir(), key=lambda item: item.name)
+            if path.is_file()
+        ]
+        logger.info("Listed %d files under %s", len(files), folder_path)
         return files
 
-    def download_file(self, file_id: str) -> bytes:
-        request = self._drive.files().get_media(fileId=file_id, supportsAllDrives=True)
-        buffer = io.BytesIO()
-        downloader = MediaIoBaseDownload(buffer, request)
-        done = False
-
-        while not done:
-            _, done = downloader.next_chunk()
-
-        content = buffer.getvalue()
-        logger.info("Downloaded file %s (%d bytes)", file_id, len(content))
+    def download_file(self, file_path: str) -> bytes:
+        content = Path(file_path).read_bytes()
+        logger.info("Downloaded file %s (%d bytes)", file_path, len(content))
         return content
 
-    def move_file(self, file_id: str, dest_folder_id: str, current_folder_id: str) -> None:
-        self._drive.files().update(
-            fileId=file_id,
-            addParents=dest_folder_id,
-            removeParents=current_folder_id,
-            supportsAllDrives=True,
-        ).execute()
+    def rename_file(self, file_path: str, new_name: str) -> str:
+        source_path = Path(file_path)
+        renamed_path = source_path.with_name(new_name)
+        source_path.rename(renamed_path)
+        logger.info("Renamed file %s to %s", file_path, new_name)
+        return str(renamed_path)
+
+    def move_file(self, file_path: str, dest_folder_path: str, _current_folder_path: str) -> None:
+        dest = Path(dest_folder_path) / Path(file_path).name
+        if dest.exists():
+            stem = dest.stem
+            suffix = dest.suffix
+            counter = 1
+            while dest.exists():
+                dest = dest.parent / f'{stem}_{counter}{suffix}'
+                counter += 1
+        shutil.move(file_path, os.fspath(dest))
         logger.info(
             "Moved file %s from %s to %s",
-            file_id,
-            current_folder_id,
-            dest_folder_id,
+            file_path,
+            _current_folder_path,
+            dest_folder_path,
         )
 
-    def rename_file(self, file_id: str, new_name: str) -> None:
-        self._drive.files().update(
-            fileId=file_id,
-            body={"name": new_name},
-            supportsAllDrives=True,
-        ).execute()
-        logger.info("Renamed file %s to %s", file_id, new_name)
-
-    def get_or_create_subfolder(self, parent_folder_id: str, folder_name: str) -> str:
-        query = (
-            f"'{self._escape_query_value(parent_folder_id)}' in parents "
-            f"and name = '{self._escape_query_value(folder_name)}' "
-            f"and mimeType = '{FOLDER_MIME_TYPE}' "
-            "and trashed = false"
-        )
-        folders = self._list_files_by_query(
-            query=query,
-            fields="id",
-            order_by="name_natural",
-        )
-        if folders:
-            folder_id = folders[0]["id"]
-            logger.info("Found subfolder %s (%s)", folder_name, folder_id)
-            return folder_id
-
-        response = self._drive.files().create(
-            body={
-                "name": folder_name,
-                "mimeType": FOLDER_MIME_TYPE,
-                "parents": [parent_folder_id],
-            },
-            fields="id",
-            supportsAllDrives=True,
-        ).execute()
-        folder_id = response["id"]
-        logger.info("Created subfolder %s (%s)", folder_name, folder_id)
-        return folder_id
-
-    def _list_files_by_query(
-        self,
-        query: str,
-        fields: str,
-        order_by: str,
-    ) -> list[dict[str, str]]:
-        items: list[dict[str, str]] = []
-        page_token: str | None = None
-
-        while True:
-            response = self._drive.files().list(
-                q=query,
-                fields=f"nextPageToken, files({fields})",
-                orderBy=order_by,
-                pageSize=1000,
-                pageToken=page_token,
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-            ).execute()
-            items.extend(response.get("files", []))
-            page_token = response.get("nextPageToken")
-            if page_token is None:
-                break
-
-        return items
-
-    @staticmethod
-    def _escape_query_value(value: str) -> str:
-        return value.replace("\\", "\\\\").replace("'", "\\'")
+    def get_or_create_subfolder(self, parent_path: str, folder_name: str) -> str:
+        target_dir = Path(parent_path) / folder_name
+        target_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("Ensured subfolder %s", target_dir)
+        return str(target_dir)

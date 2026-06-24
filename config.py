@@ -11,14 +11,15 @@ class Config:
     OUTPUT_MODE: str = os.getenv("OUTPUT_MODE", "mf_api")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     MF_CLIENT_ID: str = os.getenv("MF_CLIENT_ID", "")
     MF_CLIENT_SECRET: str = os.getenv("MF_CLIENT_SECRET", "")
     MF_ACCESS_TOKEN: str = os.getenv("MF_ACCESS_TOKEN", "")
     MF_REFRESH_TOKEN: str = os.getenv("MF_REFRESH_TOKEN", "")
-    GDRIVE_INBOX_FOLDER_ID: str = os.getenv("GDRIVE_INBOX_FOLDER_ID", "")
-    GDRIVE_PROCESSED_FOLDER_ID: str = os.getenv("GDRIVE_PROCESSED_FOLDER_ID", "")
-    GDRIVE_ERROR_FOLDER_ID: str = os.getenv("GDRIVE_ERROR_FOLDER_ID", "")
+    INBOX_FOLDER_PATH: str = os.getenv("INBOX_FOLDER_PATH", "")
+    PROCESSED_FOLDER_PATH: str = os.getenv("PROCESSED_FOLDER_PATH", "")
+    ERROR_FOLDER_PATH: str = os.getenv("ERROR_FOLDER_PATH", "")
     PAST_JOURNALS_CSV: str = os.getenv("PAST_JOURNALS_CSV", "./data/past_journals.csv")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     MF_API_BASE_URL: str = os.getenv("MF_API_BASE_URL", "https://api.biz.moneyforward.com")
@@ -39,8 +40,19 @@ class Config:
         if cls.LLM_ENGINE == "openai" and not cls.OPENAI_API_KEY:
             errors.append("OPENAI_API_KEY is required when LLM_ENGINE=openai")
 
-        if not cls.GDRIVE_INBOX_FOLDER_ID:
-            errors.append("GDRIVE_INBOX_FOLDER_ID is not set")
+        if cls.LLM_ENGINE == "gemini" and not cls.GEMINI_API_KEY:
+            errors.append("GEMINI_API_KEY is required when LLM_ENGINE=gemini")
+
+        if not cls.INBOX_FOLDER_PATH:
+            errors.append("INBOX_FOLDER_PATH is not set")
+        elif not Path(cls.INBOX_FOLDER_PATH).is_dir():
+            errors.append(f"INBOX_FOLDER_PATH is not a directory: {cls.INBOX_FOLDER_PATH}")
+
+        if not cls.PROCESSED_FOLDER_PATH:
+            errors.append("PROCESSED_FOLDER_PATH is not set")
+
+        if not cls.ERROR_FOLDER_PATH:
+            errors.append("ERROR_FOLDER_PATH is not set")
 
         if cls.OUTPUT_MODE == "mf_api":
             required_values = {
@@ -58,3 +70,7 @@ class Config:
     @classmethod
     def ensure_directories(cls) -> None:
         cls.LOG_DIR.mkdir(parents=True, exist_ok=True)
+        if cls.PROCESSED_FOLDER_PATH:
+            Path(cls.PROCESSED_FOLDER_PATH).mkdir(parents=True, exist_ok=True)
+        if cls.ERROR_FOLDER_PATH:
+            Path(cls.ERROR_FOLDER_PATH).mkdir(parents=True, exist_ok=True)

@@ -18,11 +18,6 @@ logger = logging.getLogger(__name__)
 
 def run() -> None:
     errors = Config.validate()
-    if not Config.GDRIVE_PROCESSED_FOLDER_ID:
-        errors.append("GDRIVE_PROCESSED_FOLDER_ID is not set")
-    if not Config.GDRIVE_ERROR_FOLDER_ID:
-        errors.append("GDRIVE_ERROR_FOLDER_ID is not set")
-
     if errors:
         for error in errors:
             logger.error(error)
@@ -41,7 +36,7 @@ def run() -> None:
                 logger.info("MF account master loaded (%d items)", len(mf_accounts))
             except Exception as exc:
                 logger.warning("Failed to fetch MF account master at startup: %s", exc)
-        person_folders = drive_client.list_person_folders(Config.GDRIVE_INBOX_FOLDER_ID)
+        person_folders = drive_client.list_person_folders(Config.INBOX_FOLDER_PATH)
     except Exception as exc:
         logger.error("Failed to initialize pipeline: %s", exc, exc_info=True)
         print(f"[x] 初期化失敗: {exc}", file=sys.stderr)
@@ -179,9 +174,9 @@ def _process_file(
             raise ValueError(detail)
 
         renamed_to = _build_renamed_file_name(original_name, canonical)
-        drive_client.rename_file(file_id, renamed_to)
+        file_id = drive_client.rename_file(file_id, renamed_to)
         processed_folder_id = drive_client.get_or_create_subfolder(
-            Config.GDRIVE_PROCESSED_FOLDER_ID,
+            Config.PROCESSED_FOLDER_PATH,
             person_name,
         )
         drive_client.move_file(file_id, processed_folder_id, current_folder_id)
@@ -239,7 +234,7 @@ def _move_to_error_folder(
 ) -> str | None:
     try:
         error_folder_id = drive_client.get_or_create_subfolder(
-            Config.GDRIVE_ERROR_FOLDER_ID,
+            Config.ERROR_FOLDER_PATH,
             person_name,
         )
         drive_client.move_file(file_id, error_folder_id, current_folder_id)

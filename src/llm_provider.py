@@ -25,6 +25,7 @@ _SCHEMA_INSTRUCTION = """以下のJSON構造で出力してください。
 - document.validation.tax_sum_matches_total: boolean"""
 _ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
 _OPENAI_MODEL = "gpt-4o-mini"
+_GEMINI_MODEL = "gemini-2.0-flash"
 _REQUEST_TIMEOUT = 60.0
 
 
@@ -38,6 +39,8 @@ def call_llm(ocr_text: str, context: str) -> tuple[str, float]:
             raw_text = _call_anthropic(user_prompt)
         elif engine == "openai":
             raw_text = _call_openai(user_prompt)
+        elif engine == "gemini":
+            raw_text = _call_gemini(user_prompt)
         else:
             raise Exception(f"Unsupported LLM_ENGINE: {Config.LLM_ENGINE}")
 
@@ -118,6 +121,23 @@ def _call_openai(user_prompt: str) -> str:
             return "\n".join(parts).strip()
 
     raise Exception("OpenAI response did not contain text content")
+
+
+def _call_gemini(user_prompt: str) -> str:
+    import google.generativeai as genai
+
+    genai.configure(api_key=Config.GEMINI_API_KEY)
+    model = genai.GenerativeModel(_GEMINI_MODEL, system_instruction=_SYSTEM_PROMPT)
+    response = model.generate_content(user_prompt)
+    if not response.candidates:
+        raise Exception('Gemini response blocked or empty (no candidates)')
+    candidate = response.candidates[0]
+    if not candidate.content or not candidate.content.parts:
+        raise Exception(f'Gemini response blocked. finish_reason={candidate.finish_reason}')
+    text = response.text.strip()
+    if not text:
+        raise Exception('Gemini response was empty')
+    return text
 
 
 def _extract_json_text(raw_text: str) -> str:
