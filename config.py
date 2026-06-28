@@ -7,6 +7,7 @@ load_dotenv()
 
 
 class Config:
+    PROJECT_ROOT: Path = Path(__file__).resolve().parent
     LLM_ENGINE: str = os.getenv("LLM_ENGINE", "claude")
     OUTPUT_MODE: str = os.getenv("OUTPUT_MODE", "mf_api")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
@@ -21,6 +22,13 @@ class Config:
     PROCESSED_FOLDER_PATH: str = os.getenv("PROCESSED_FOLDER_PATH", "")
     ERROR_FOLDER_PATH: str = os.getenv("ERROR_FOLDER_PATH", "")
     PAST_JOURNALS_CSV: str = os.getenv("PAST_JOURNALS_CSV", "./data/past_journals.csv")
+    JSON_OUTPUT_DIR: str = os.getenv("JSON_OUTPUT_DIR", str((PROJECT_ROOT / "output" / "json").resolve()))
+    CSV_OUTPUT_DIR: str = os.getenv("CSV_OUTPUT_DIR", str((PROJECT_ROOT / "output" / "csv").resolve()))
+    DEFAULT_ACCOUNT_TITLE: str = os.getenv("DEFAULT_ACCOUNT_TITLE", "仮払金")
+    ACCOUNT_REFERENCE_PATH: str = os.getenv(
+        "ACCOUNT_REFERENCE_PATH",
+        str((PROJECT_ROOT / "99_勘定科目参照" / "勘定科目参照表_v1.md").resolve()),
+    )
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     MF_API_BASE_URL: str = os.getenv("MF_API_BASE_URL", "https://api.biz.moneyforward.com")
     MF_TOKEN_URL: str = os.getenv("MF_TOKEN_URL", "https://accounts.moneyforward.com/oauth/token")
@@ -70,6 +78,8 @@ class Config:
     @classmethod
     def ensure_directories(cls) -> None:
         cls.LOG_DIR.mkdir(parents=True, exist_ok=True)
+        Path(cls.JSON_OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+        Path(cls.CSV_OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
         if cls.PROCESSED_FOLDER_PATH:
             Path(cls.PROCESSED_FOLDER_PATH).mkdir(parents=True, exist_ok=True)
         if cls.ERROR_FOLDER_PATH:

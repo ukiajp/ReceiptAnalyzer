@@ -156,6 +156,9 @@ PAST_JOURNALS_CSV=./data/past_journals.csv
 | ADR-009 | ローカルLLM（Ollama）は対象外（v1） | 安定性優先。Phase 2以降で実験 |
 | ADR-011 | Gemini（gemini-2.0-flash）をLLM_ENGINE第3の選択肢として追加 | 無料枠（1日1,500req）でのテスト・コスト削減目的。google-generativeai ライブラリ使用。ADR-002の枝葉設計に従い llm_provider.py のみ変更 |
 | ADR-012 | 入力源を Drive API からマウント済みローカルパスに変更 | Drive API（フォルダID方式）は不要な複雑さ。GドライブやBOXをマウントすれば複数PC対応も可能。os/pathlib/shutil で十分。GDRIVE_*_FOLDER_ID を廃止し INBOX_FOLDER_PATH 等のパス変数に置き換え |
+| ADR-013 | **Visionフロント＝Claude Code 対話スキル**（構成B）を上流の選択肢に追加 | agy CLIは非対話バッチで画像解析がハング（実測）。外部Vision/LLM APIはキー・課金・外部送信が増える。Claude Code（対話エージェント）はRead/Visionで画像→正本JSONを直接生成でき、人が起動する前提（UKIAの原案）に合致。鍵不要・人ゲート内蔵。OCR/LLM API層（ocr_engine/llm_provider）は構成Bでは不使用。**正本JSON v1.0.0 は不変＝下流（csv_exporter）はそのまま再利用**。 |
+| ADR-014 | 勘定科目＝**蒸留表（店名→勘定科目）で確定スクリプト側に決定論マッピング**（構成B） | ADR-007（過去仕訳をLLM文脈に渡す）はLLMが判断＝トークン消費・非決定論。構成BではVision（Claude）を画像抽出に専念させ、勘定科目は過去仕訳帳を蒸留した参照表（店名キー→主勘定科目＋確信ヒント）でスクリプトが決定論的に付与。確信「低」は warning を付け人確認（可逆）。トークン軽・監査可能。 |
+| ADR-015 | MF CSV出力を**実インポート形式に確定**（27列・Shift-JIS(cp932)・複式借方/貸方・取引日YYYY/M/D・税区分「課税仕入 10%」） | UKIAの実MFインポートCSV（現物）と既存csv_exporter（14列・utf-8-sig・貸方空）が不一致。現物に合わせ全面改訂：貸方＝未払金・補助科目 現金・対象外、借方=貸方=税込額。複数税率混在/8%検知は方式B（CSV化せずエラー隔離）。 |
 
 ---
 
@@ -169,4 +172,51 @@ PAST_JOURNALS_CSV=./data/past_journals.csv
 
 ---
 
+## 9. 構成B（Claude Vision フロント）— 2026-06-28 追加
+
+> 構成A（Vision OCR＋LLM API → 正本JSON）と**正本JSON v1.0.0 を共有**する、別の上流。
+> Visionエンジン＝Claude Code（対話）。人が起動し、Claudeが画像を読み、確定スクリプトがCSV化する。
+
+### 処理フロー（構成B）
+
+```
+[人] スマホ撮影 → 00_受信トレイ/{人名}/ に保存
+[人] Claude Code でスキル起動（例: レシート取り込んで）
+
+[Claude(Vision)]
+  for 画像 in 00_受信トレイ/ 配下（再帰）:
+    画像を Read（Vision）で読取 → 正本JSON v1.0.0 を生成
+      （partner_name / partner_normalized / date / total /
+        tax.rate_10 rate_8 / partner_registration_number /
+        payment_method / confidence / validation / extensions.summary）
+      ※ inferred.account_title は埋めない（スクリプトが蒸留表で付与）
+    正本JSONを output/json/ に保存
+
+[確定スクリプト build_mf_csv.py（決定論）]
+  for 正本JSON:
+    蒸留表で partner_normalized → 勘定科目＋確信（ADR-014）
+    検証（tax合算=total / 方式B：複数税率・8%は除外しエラーへ）
+    → MF CSV（27列・cp932・ADR-015）に1行追記
+  CSV書込成功後に画像を 01_処理済み/ or 02_エラー/ へ移動（リネーム）
+
+[人ゲート] 結果レポート（件数・warnings）確認 → CSVをMFへ手動インポート → MF画面で確認・修正（可逆）
+```
+
+### 構成A/B の分担（同じ正本JSONを共有）
+
+| 層 | 構成A（既存） | 構成B（追加） | 共有 |
+|---|---|---|---|
+| 上流（JSON生成） | ocr_engine + llm_provider（API） | **Claude Code 対話Vision** | — |
+| 勘定科目 | account_resolver（LLM文脈・ADR-007） | **蒸留表・決定論（ADR-014）** | — |
+| 正本JSON | v1.0.0 | v1.0.0 | ✅ 同一 |
+| 下流（CSV） | csv_exporter | csv_exporter | ✅ 同一（ADR-015で27列cp932へ改訂） |
+
+### 構成B固有の参照データ
+
+- 勘定科目蒸留表：`99_勘定科目参照/勘定科目参照表_v1.md`（受信トレイと同じドライブ。過去のMF仕訳帳から蒸留。生成手順は `doc/account_distillation.md`）。
+- CSVマッピング契約：`doc/csv_mapping.md`（27列・cp932・借方/貸方・方式B）。
+
+---
+
 *作成: 2026-06-21 / Claude Code Phase 0 / purpose.md・interface.md から派生*
+*構成B追記: 2026-06-28*

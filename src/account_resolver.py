@@ -1,5 +1,6 @@
 import csv
 import logging
+import unicodedata
 from pathlib import Path
 
 import requests
@@ -68,6 +69,74 @@ def load_past_journals(csv_path: str) -> str:
     return "過去仕訳データ:\n" + "\n".join(lines)
 
 
+def load_distill_table(path: str | Path) -> list[dict[str, str]]:
+    table_path = Path(path)
+    if not table_path.is_file():
+        logger.warning("Distill table not found: %s", table_path)
+        return []
+
+    rules: list[dict[str, str]] = []
+    with table_path.open("r", encoding="utf-8-sig") as file:
+        for raw_line in file:
+            line = raw_line.strip()
+            if not line.startswith("|"):
+                continue
+
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if len(cells) < 3:
+                continue
+            if cells[0] == "店名キー":
+                continue
+            if all(set(cell) <= {"-", ":"} for cell in cells[:3]):
+                continue
+
+            key = cells[0]
+            account_title = cells[1]
+            confidence = cells[2] or "低"
+            if not key or not account_title:
+                continue
+
+            normalized_key = _normalize_vendor(key)
+            if not normalized_key:
+                continue
+
+            rules.append(
+                {
+                    "key": key,
+                    "normalized_key": normalized_key,
+                    "account_title": account_title,
+                    "confidence": confidence,
+                }
+            )
+
+    logger.info("Loaded %d distill-table rules: %s", len(rules), table_path)
+    return rules
+
+
+def resolve_account(vendor: str, rules: list[dict[str, str]]) -> tuple[str, str]:
+    normalized_vendor = _normalize_vendor(vendor)
+    if not normalized_vendor:
+        return "", "低"
+
+    exact_matches = [
+        rule for rule in rules if rule.get("normalized_key", "") == normalized_vendor
+    ]
+    if exact_matches:
+        selected = _select_best_rule(exact_matches)
+        return selected["account_title"], selected["confidence"]
+
+    partial_matches = [
+        rule
+        for rule in rules
+        if rule.get("normalized_key") and rule["normalized_key"] in normalized_vendor
+    ]
+    if partial_matches:
+        selected = _select_best_rule(partial_matches)
+        return selected["account_title"], selected["confidence"]
+
+    return "", "低"
+
+
 def get_mf_account_master(access_token: str, base_url: str) -> list[dict]:
     token = access_token.strip()
     if not token:
@@ -124,8 +193,25 @@ def build_context(past_journals_text: str, mf_accounts: list[dict]) -> str:
 
     accounts_text = ", ".join(account_names) if account_names else "なし"
     return (
-        f"【過去の仕訳実績】\n{journals_text}\n\n"
-        f"【利用可能な勘定科目】\n{accounts_text}"
+        f"【過去の仕訳文脈】\n{journals_text}\n\n"
+        f"【使用可能な勘定科目】\n{accounts_text}"
+    )
+
+
+def _normalize_vendor(value: object) -> str:
+    if value is None:
+        return ""
+    text = unicodedata.normalize("NFKC", str(value)).casefold()
+    return "".join(text.split())
+
+
+def _select_best_rule(rules: list[dict[str, str]]) -> dict[str, str]:
+    return max(
+        rules,
+        key=lambda rule: (
+            len(rule.get("normalized_key", "")),
+            len(rule.get("key", "")),
+        ),
     )
 
 

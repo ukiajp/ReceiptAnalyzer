@@ -105,4 +105,14 @@ APIキー・トークンのログ出力  # 秘密情報の露出
 
 ---
 
+## 4. 構成B（Claude Vision）差分 — 2026-06-28
+
+- **外部API**：構成Bでは Vision API / LLM API / Google Drive API を**使わない**（Claude Codeが画像をRead・入力はマウント済みフォルダ）。Phase1は MF API も不使用（CSVを人が手動インポート）。証憑画像はClaude（Anthropic）に送られる＝外部送信である点はGlobal境界として明記（可否はUKIA許容済み）。
+- **Allowlist 追加**：`Bash(.venv/Scripts/python.exe build_mf_csv.py*)` を無確認許可に。
+- **CSV出力先**：`G:\…\レシート・領収書画像\10_MFインポートCSV\`（受信トレイと同ドライブの回収用）。`--output-dir` か `.env` の `CSV_OUTPUT_DIR` で指定。
+- **要承認は不変**：git push / MF API POST / .env書換 / Drive削除。
+
+---
+
 *作成: 2026-06-21 / Claude Code Phase 0 / sdd.md から派生*
+*構成B追記: 2026-06-28*

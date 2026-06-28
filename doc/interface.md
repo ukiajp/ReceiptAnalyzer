@@ -98,3 +98,14 @@
 | `tax`（単一・converter） | `tax.rate_10 / rate_8`（分割）。converter を分割対応に修正 |
 
 > 移行実装は spec ではなくコード変更のため、3engine-impl フロー（Codex実装→agyレビュー→統合）で行う。
+
+---
+
+## 構成B（Claude Vision フロント）での生成（2026-06-28・ADR-013/014）
+
+正本JSON v1.0.0 は不変。**生成元だけが変わる**：
+
+- `source.ocr_engine` に `"claude_code"` を許容（構成Bは Claude Code 対話Vision が画像→JSONを直接生成）。
+- `document.inferred.account_title` は**構成Bでは空/未設定で出してよい**。確定スクリプト（`build_mf_csv.py`）が蒸留表で付与し、`account_source` を `"distill_table"` とする（ADR-014）。
+- `document.extensions.summary`（任意・構成B）：CSV摘要用の「用途（店名）」文字列。Claudeが画像から生成（例 `駐車料金（西宮市立中央体育館第1駐車場）`）。無ければ下流は `partner_name` を使う。
+- CSV着地の列対応は `doc/csv_mapping.md`（27列・cp932）を正とする。

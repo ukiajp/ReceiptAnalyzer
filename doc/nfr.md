@@ -74,4 +74,15 @@
 
 ---
 
+## 7. 構成B（Claude Vision）差分 — 2026-06-28
+
+- **パフォーマンス**：Visionは対話内処理（人が起動）。1枚あたり画像トークン約1,500＋抽出。月数十枚はMax枠内・実質軽量。OCR/LLM APIのレイテンシ要件は構成Bでは非該当。
+- **コスト**：構成Bは Vision API/LLM API 課金が発生しない（Claude Codeで処理）。Google Vision無料枠の制約も非該当。
+- **セキュリティ**：レシート画像はClaude（Anthropic）に送信（外部送信）。`.env`・`google-credentials.json` は `.gitignore` 済み・未追跡を確認済み。
+- **起動方法**：手動トリガー（Claude Codeでスキル `receipt-import` を起動）。デーモン/スケジューラ不要。自動起動（フォルダ監視）は将来オプション。
+- **コア依存**：`build_mf_csv.py` は Python標準ライブラリのみ（追加依存なし）。
+
+---
+
 *作成: 2026-06-21 / Claude Code Phase 0 / sdd.md から派生*
+*構成B追記: 2026-06-28*
