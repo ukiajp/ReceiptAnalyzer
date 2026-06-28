@@ -106,6 +106,6 @@
 正本JSON v1.0.0 は不変。**生成元だけが変わる**：
 
 - `source.ocr_engine` に `"claude_code"` を許容（構成Bは Claude Code 対話Vision が画像→JSONを直接生成）。
-- `document.inferred.account_title` は**構成Bでは空/未設定で出してよい**。確定スクリプト（`build_mf_csv.py`）が蒸留表で付与し、`account_source` を `"distill_table"` とする（ADR-014）。
+- `document.inferred.account_title` は**構成BではClaudeが画像内容から推定して入れる**（`account_source="claude_inference"`）。確定スクリプト（`build_mf_csv.py`）が3段で最終決定：①蒸留表の店名一致を最優先で上書き（`distill_table`）→②無ければClaude推定を採用→③どちらも無ければ既定『仮払金』（`default`）（ADR-014/016）。
 - `document.extensions.summary`（任意・構成B）：CSV摘要用の「用途（店名）」文字列。Claudeが画像から生成（例 `駐車料金（西宮市立中央体育館第1駐車場）`）。無ければ下流は `partner_name` を使う。
 - CSV着地の列対応は `doc/csv_mapping.md`（27列・cp932）を正とする。

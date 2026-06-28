@@ -88,22 +88,26 @@ def run() -> int:
 
             inferred = _ensure_inferred(document)
             account_title = str(inferred.get("account_title") or "").strip()
-            if not account_title:
-                vendor = str(
-                    inferred.get("partner_normalized") or _get_nested(canonical, "document.partner_name") or ""
-                )
-                resolved_account, confidence = account_resolver.resolve_account(vendor, rules)
-                if resolved_account:
-                    inferred["account_title"] = resolved_account
-                    inferred["account_source"] = "distill_table"
-                else:
-                    inferred["account_title"] = Config.DEFAULT_ACCOUNT_TITLE
-                    inferred["account_source"] = "default"
-                    warnings_count += 1
-                    _print_warning(json_path, "勘定科目未解決(既定科目)")
-                if resolved_account and "低" in confidence:
+            vendor = str(
+                inferred.get("partner_normalized") or _get_nested(canonical, "document.partner_name") or ""
+            )
+            resolved_account, confidence = account_resolver.resolve_account(vendor, rules)
+            if resolved_account:
+                inferred["account_title"] = resolved_account
+                inferred["account_source"] = "distill_table"
+                if "低" in confidence:
                     warnings_count += 1
                     _print_warning(json_path, "勘定科目低確信")
+            elif account_title:
+                inferred["account_title"] = account_title
+                inferred["account_source"] = "claude_inference"
+                warnings_count += 1
+                _print_warning(json_path, "AI推定科目(要確認)")
+            else:
+                inferred["account_title"] = Config.DEFAULT_ACCOUNT_TITLE
+                inferred["account_source"] = "default"
+                warnings_count += 1
+                _print_warning(json_path, "勘定科目未解決(既定科目)")
 
             row = csv_exporter.to_csv_row(canonical)
             encoding_warnings = csv_exporter.find_cp932_warnings(row)
